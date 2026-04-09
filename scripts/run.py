@@ -60,6 +60,7 @@ def http_get(url: str, timeout: int = 30) -> requests.Response:
 
 
 def fetch_latest_episode() -> Episode:
+    print("▶ Fetching RSS feed...", flush=True)
     feed = feedparser.parse(RSS_URL)
     if not feed.entries:
         raise RuntimeError("RSS feed has no entries")
@@ -77,19 +78,22 @@ def fetch_latest_episode() -> Episode:
         if pub_dt.tzinfo is None:
             pub_dt = pub_dt.replace(tzinfo=timezone.utc)
     else:
-        # fallback: now
         pub_dt = datetime.now(timezone.utc)
 
     bj_tz = ZoneInfo("Asia/Shanghai")
     pub_bj = pub_dt.astimezone(bj_tz)
     pub_date_bj = pub_bj.strftime("%Y-%m-%d")
 
-    # 摘要（RSS description/summary 常含 HTML）
+    # 摘要
     summary_html = entry.get("summary") or entry.get("description") or ""
     summary = BeautifulSoup(summary_html, "html.parser").get_text(" ", strip=True)
 
     transcript_url = link.rstrip("/") + "/transcript"
+    print(f"▶ Fetching transcript from {transcript_url}...", flush=True)
     transcript_html_en, transcript_text_en = fetch_transcript(transcript_url)
+
+    print(f"✔ Episode: \"{title}\" ({pub_date_bj})", flush=True)
+    print(f"  Transcript length: {len(transcript_html_en)} chars", flush=True)
 
     return Episode(
         title=title,
@@ -107,7 +111,10 @@ def fetch_transcript(transcript_url: str) -> tuple[str, str]:
     resp = http_get(transcript_url, timeout=40)
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    section = soup.select_one("section.episode-description.episode-transcript") or soup.select_one("section.episode-transcript")
+    section = (
+        soup.select_one("section.episode-description.episode-transcript")
+        or soup.select_one("section.episode-transcript")
+    )
     if not section:
         raise RuntimeError("Transcript section not found")
 
@@ -115,10 +122,8 @@ def fetch_transcript(transcript_url: str) -> tuple[str, str]:
     if not ps:
         raise RuntimeError("No <p> found in transcript section")
 
-    # 只要从 [00:00...] 开始：通常第一个 <p> 就是。
-    # 若前面有非时间戳段落，则从首次出现 [00:00 或 [00: 开头的段落开始。
-    start_idx = 0
     ts_pat = re.compile(r"^\[\d{2}:\d{2}:\d{2}")
+    start_idx = 0
     for i, p in enumerate(ps):
         txt = p.get_text("\n", strip=True)
         if ts_pat.search(txt):
@@ -127,20 +132,14 @@ def fetch_transcript(transcript_url: str) -> tuple[str, str]:
 
     ps = ps[start_idx:]
 
-    # 组装英文 transcript HTML：给每个 <p> 增加 inline 样式以保证邮件展示
-    # 注意：不改动内容结构（保持 <p> 与 <br>）
     html_parts = []
     text_parts = []
 
     for p in ps:
-        # transcript 页面通常是:
-        # <p>[00:..] Speaker<br />Text ...</p>
-        # 我们尽量保留 <br>，并加上样式
         p_copy = BeautifulSoup(str(p), "html.parser").p
         if p_copy is None:
             continue
 
-        # 强制 inline style（避免部分邮件客户端丢失外层样式）
         existing_style = (p_copy.get("style") or "").strip()
         style = "margin:0 0 10px 0;color:#111827;font-size:14px !important;line-height:1.6 !important;"
         if existing_style:
@@ -148,8 +147,6 @@ def fetch_transcript(transcript_url: str) -> tuple[str, str]:
         p_copy["style"] = style
 
         html_parts.append(str(p_copy))
-
-        # 纯文本备用
         text_parts.append(p.get_text("\n", strip=True))
 
     transcript_html = "\n".join(html_parts).strip()
@@ -169,7 +166,6 @@ def split_html_by_paragraphs(transcript_html_en: str, max_chars: int) -> list[st
         if not s.strip():
             continue
 
-        # 单个段落过长：仍然单独作为一块（不从标签中间切断）
         if not buf:
             buf = [s]
             buf_len = len(s)
@@ -188,6 +184,7 @@ def split_html_by_paragraphs(transcript_html_en: str, max_chars: int) -> list[st
 
 def gemini_translate_html(api_key: str, html: str, *, max_retries: int = 10) -> str:
     """
+    - 401/403: API Key 无效，立即终止
     - 429: respect Retry-After
     - other non-retriable 4xx: abort immediately
     - retriable: exponential backoff + jitter
@@ -218,16 +215,22 @@ def gemini_translate_html(api_key: str, html: str, *, max_retries: int = 10) -> 
                 },
             )
 
+            # ---- API Key 无效：立即终止，不重试 ----
+            if resp.status_code in (401, 403):
+                raise SystemExit(
+                    f"✖ GEMINI_API_KEY invalid or unauthorized (HTTP {resp.status_code}): "
+                    f"{resp.text[:200]}"
+                )
+
             if resp.status_code == 429:
                 ra = resp.headers.get("Retry-After")
                 wait_s = int(ra) if ra and ra.isdigit() else 60
-                # 抖动
                 wait_s = wait_s + random.uniform(0, 1.0)
+                print(f"  ⏳ Rate-limited by Gemini, waiting {wait_s:.0f}s (attempt {attempt})...", flush=True)
                 time.sleep(wait_s)
                 continue
 
             if 400 <= resp.status_code < 500:
-                # 不可重试的 4xx（除 429 外）
                 raise RuntimeError(f"Gemini non-retriable error: {resp.status_code} {resp.text[:300]}")
 
             if resp.status_code >= 500:
@@ -245,13 +248,15 @@ def gemini_translate_html(api_key: str, html: str, *, max_retries: int = 10) -> 
                 raise RuntimeError("Gemini returned empty text")
             return text
 
+        except SystemExit:
+            raise  # 不捕获 SystemExit，让它直接终止进程
         except Exception as e:
             if attempt >= max_retries:
                 raise
 
-            # 指数退避 + 抖动
             backoff = min(2 ** (attempt - 1), 64)
             sleep_s = backoff + random.uniform(0, 1.0)
+            print(f"  ⚠ Gemini error (attempt {attempt}/{max_retries}): {e}, retrying in {sleep_s:.1f}s...", flush=True)
             time.sleep(sleep_s)
 
     raise RuntimeError("Unreachable")
@@ -261,57 +266,64 @@ def translate_episode(api_key: str, ep: Episode) -> tuple[str | None, str | None
     """
     返回 (title_zh, summary_zh, transcript_html_zh)
     任一失败 -> 返回全 None（确保邮件只发英文）
+    注意：SystemExit（API Key 无效）不会被捕获，会直接终止。
     """
     try:
+        print("▶ Translating title...", flush=True)
         title_zh = gemini_translate_html(api_key, f"<p>{escape_min(ep.title)}</p>")
         title_zh = BeautifulSoup(title_zh, "html.parser").get_text(" ", strip=True) or None
+        print(f"  ✔ Title (zh): {title_zh}", flush=True)
 
+        print("▶ Translating summary...", flush=True)
         summary_zh = gemini_translate_html(api_key, f"<p>{escape_min(ep.summary)}</p>")
         summary_zh = BeautifulSoup(summary_zh, "html.parser").get_text(" ", strip=True) or None
+        print(f"  ✔ Summary (zh): {summary_zh[:60]}...", flush=True)
 
         # transcript：按长度分段
         if len(ep.transcript_html_en) < DIRECT_TRANSLATE_THRESHOLD:
+            print("▶ Translating transcript (single chunk)...", flush=True)
             transcript_zh = gemini_translate_html(api_key, ep.transcript_html_en)
             transcript_html_zh = normalize_transcript_html_style(transcript_zh, color="#374151")
         else:
             chunks = split_html_by_paragraphs(ep.transcript_html_en, MAX_CHUNK_CHARS)
+            print(f"▶ Translating transcript ({len(chunks)} chunks)...", flush=True)
             out_parts: list[str] = []
             for i, ch in enumerate(chunks):
+                print(f"  ▶ Chunk {i + 1}/{len(chunks)} ({len(ch)} chars)...", flush=True)
                 zh = gemini_translate_html(api_key, ch)
                 out_parts.append(zh)
 
-                # 每段成功后暂停 15s（最后一段不需要）
                 if i != len(chunks) - 1:
+                    print(f"  ⏳ Pausing 15s before next chunk...", flush=True)
                     time.sleep(15)
 
             transcript_html_zh = normalize_transcript_html_style("\n".join(out_parts), color="#374151")
+
+        print("✔ Translation complete.", flush=True)
 
         if not title_zh or not summary_zh or not transcript_html_zh:
             return None, None, None
 
         return title_zh, summary_zh, transcript_html_zh
 
-    except Exception:
-        # 按要求：翻译失败则继续发仅英文邮件
+    except SystemExit:
+        raise  # API Key 无效等，直接终止
+    except Exception as e:
+        print(f"✖ Translation failed, will send English-only email: {e}", flush=True)
         return None, None, None
 
 
 def normalize_transcript_html_style(html: str, *, color: str) -> str:
-    """
-    确保中文 transcript 的 <p> 也有稳定的 inline style（颜色/字号/行高）。
-    """
     soup = BeautifulSoup(f"<div>{html}</div>", "html.parser")
     for p in soup.find_all("p"):
         existing = (p.get("style") or "").strip()
         style = f"margin:0 0 10px 0;color:{color};font-size:14px !important;line-height:1.6 !important;"
         p["style"] = (existing.rstrip(";") + ";" + style) if existing else style
-    # 返回 div 内部
     div = soup.find("div")
     return "".join(str(x) for x in div.contents) if div else html
 
 
 def escape_min(s: str) -> str:
-    # 简单最小转义用于包进 <p>... 的输入
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
@@ -322,22 +334,20 @@ def send_email_via_maileroo(
     email_to_list: list[str],
     subject: str,
     html: str,
-    text: str,
+    plain: str,
 ) -> None:
     """
-    Maileroo API（如与你账户的 API Endpoint/字段略有差异，请按 Maileroo 文档调整此处）。
-    常见用法：
-      POST https://api.maileroo.com/send
-      Header: X-API-Key: ...
+    Maileroo API — POST https://api.maileroo.com/v1/email/send
     """
-    url = "https://api.maileroo.com/send"
+    url = "https://api.maileroo.com/v1/email/send"
     payload = {
         "from": {"email": email_from, "name": "Newsletter"},
         "to": [{"email": x.strip()} for x in email_to_list if x.strip()],
         "subject": subject,
         "html": html,
-        "text": text,
+        "plain": plain,
     }
+    print(f"▶ Sending email via Maileroo to {len(email_to_list)} recipient(s)...", flush=True)
     resp = requests.post(
         url,
         timeout=60,
@@ -347,13 +357,16 @@ def send_email_via_maileroo(
         },
         json=payload,
     )
+    if not resp.ok:
+        print(f"✖ Maileroo response: {resp.status_code} {resp.text[:300]}", flush=True)
     resp.raise_for_status()
+    print("✔ Email sent successfully.", flush=True)
 
 
 def update_pages(ep: Episode) -> None:
+    print("▶ Updating GitHub Pages...", flush=True)
     os.makedirs(DOCS_DIR, exist_ok=True)
 
-    # 读取历史
     items: list[dict] = []
     if os.path.exists(DATA_JSON_PATH):
         try:
@@ -362,7 +375,6 @@ def update_pages(ep: Episode) -> None:
         except Exception:
             items = []
 
-    # 新记录（只包含 Pages 要展示的字段）
     record = {
         "title": ep.title,
         "date": ep.pub_date_bj,
@@ -370,15 +382,11 @@ def update_pages(ep: Episode) -> None:
         "link": ep.link,
     }
 
-    # 去重（按 link）
     links = [x.get("link") for x in items]
     if ep.link in links:
-        # 如果已存在，移动到最前并更新字段
         idx = links.index(ep.link)
         items.pop(idx)
     items.insert(0, record)
-
-    # 保留最近 6 条
     items = items[:6]
 
     with open(DATA_JSON_PATH, "w", encoding="utf-8") as f:
@@ -387,19 +395,24 @@ def update_pages(ep: Episode) -> None:
     with open(INDEX_HTML_PATH, "w", encoding="utf-8") as f:
         f.write(build_pages_index_html(items))
 
+    print("✔ Pages updated.", flush=True)
+
 
 def main() -> None:
+    print("═══ Cheeky Pint Newsletter ═══", flush=True)
+
+    print("▶ Validating environment variables...", flush=True)
     gemini_key = must_env("GEMINI_API_KEY")
     maileroo_key = must_env("MAILEROO_API_KEY")
     email_to = must_env("EMAIL_TO")
     email_from = must_env("EMAIL_FROM")
+    print("✔ All env vars present.", flush=True)
 
     email_to_list = re.split(r"[,\s;]+", email_to.strip())
     email_to_list = [x for x in email_to_list if x]
 
     ep = fetch_latest_episode()
 
-    # 翻译（允许失败）
     title_zh, summary_zh, transcript_html_zh = translate_episode(gemini_key, ep)
 
     bj_tz = ZoneInfo("Asia/Shanghai")
@@ -427,19 +440,19 @@ def main() -> None:
         f"Link: {ep.link}\n\n"
         f"Transcript (EN):\n{ep.transcript_text_en}\n"
     )
-    # 按要求：翻译失败时发送只含英文原文邮件
-    # 这里 text 始终为英文；HTML 中只有当三项中文都成功才显示中文块
+
     send_email_via_maileroo(
         maileroo_key,
         email_from=email_from,
         email_to_list=email_to_list,
         subject=subject,
         html=html,
-        text=text,
+        plain=text,
     )
 
-    # 更新 Pages（仅标题/日期/摘要；保留 6 条）
     update_pages(ep)
+
+    print("═══ Done ═══", flush=True)
 
 
 if __name__ == "__main__":
