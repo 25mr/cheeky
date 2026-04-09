@@ -131,16 +131,7 @@ def build_email_html(
     summary_zh: str | None = None,
     transcript_html_zh: str | None = None,
 ) -> str:
-    """
-    邮件要求：
-    - EN #111827
-    - 中文 #374151
-    - font-size 14px !important; line-height 1.6 !important;
-    - HEADER/FOOTER 背景 #0F172A 渐变
-    - Footer 居中 Updated at yyyy-mm-dd hh:mm UTC+8
-    - 手机兼容：table + inline style
-    """
-    # 是否展示中文块：只要任何一项翻译缺失，就不展示中文块（按你的“翻译失败则仅英文”要求）
+
     show_zh = (title_zh is not None) and (summary_zh is not None) and (transcript_html_zh is not None)
 
     preheader = f"{title_en} | {pub_date_bj}"
