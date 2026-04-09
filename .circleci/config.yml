@@ -69,12 +69,12 @@ jobs:
 
             git commit -m "Update docs/data.json"
 
-            git remote set-url target "git@github.com:${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+            git remote set-url origin "git@github.com:${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
 
             mkdir -p ~/.ssh
             ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-            git push target "HEAD:${CIRCLE_BRANCH}"
+            git push origin "HEAD:${CIRCLE_BRANCH}"
 
 workflows:
   CP_newsletter_generator:
