@@ -69,10 +69,10 @@ jobs:
 
             git commit -m "Update docs/data.json"
 
-            git remote set-url origin "git@github.com:${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+            git remote set-url origin "git@github.com-CP:${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
 
             mkdir -p ~/.ssh
-            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            ssh-keyscan github.com-CP >> ~/.ssh/known_hosts
 
             git push origin "HEAD:${CIRCLE_BRANCH}"
 
