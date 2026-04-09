@@ -296,21 +296,28 @@ def build_email(title, date, summary, transcript_en, transcript_cn):
 def send_email(subject, html_content):
     to_list = [a.strip() for a in EMAIL_TO.split(',') if a.strip()]
     if not to_list:
-        print('ERROR: no recipients.'); return
+        print('ERROR: no recipients.')
+        return
 
     payload = {
-        'from': {'email': EMAIL_FROM, 'name': 'Newsletter'},
-        'to':   [{'email': a} for a in to_list],
-        'subject': subject,
-        'html': html_content,
+        "from": {"address": EMAIL_FROM, "display_name": "Newsletter"},
+        "to": [{"address": a} for a in to_list],
+        "subject": subject,
+        "html": html_content,
+        # "plain": "optional plain text",
     }
-    headers = {'Authorization': f'Bearer {MAILEROO_API_KEY}'}
+
+    headers = {
+        "Authorization": f"Bearer {MAILEROO_API_KEY}",
+    }
 
     resp = requests.post(
-        'https://api.maileroo.com/v1/email/send',
-        json=payload, headers=headers, timeout=30,
+        "https://smtp.maileroo.com/api/v2/emails",
+        json=payload,
+        headers=headers,
+        timeout=30,
     )
-    print(f'  Maileroo: {resp.status_code} {resp.text[:200]}')
+    print(f"Maileroo: {resp.status_code} {resp.text[:500]}")
     resp.raise_for_status()
 
 
