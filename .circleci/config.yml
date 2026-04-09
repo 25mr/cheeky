@@ -13,7 +13,7 @@ jobs:
     steps:
       - add_ssh_keys:
           fingerprints:
-            - "SHA256:dr8acksjgrjUOPbA6T59ZgQsqdSovv7DbzYTo9Wldcs"
+            - "SHA256:PI4aUd9wmss9IGnPvZZOHB3KAk0Bk2ImoNt/ZlKtA0o"
       - checkout
       - run:
           name: Ensure full git history (best-effort)
