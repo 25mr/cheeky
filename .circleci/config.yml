@@ -60,14 +60,14 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
 
-            git add index.html entries.json
+            git add docs/data.json
 
             if git diff --cached --quiet; then
               echo "No changes to commit."
               exit 0
             fi
 
-            git commit -m "Update index.html & entries.json"
+            git commit -m "Update docs/data.json"
 
             git remote set-url origin "git@github.com:${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
 
