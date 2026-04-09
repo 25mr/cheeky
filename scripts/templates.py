@@ -154,7 +154,6 @@ def build_email_html(
           </tr>
         """
 
-    # Transcript HTML 进入邮件：需要确保 <p> 有行高与颜色
     transcript_en_block = f"""
       <div style="color:#111827;font-size:14px !important;line-height:1.6 !important;">
         {transcript_html_en}
@@ -167,7 +166,6 @@ def build_email_html(
       </div>
     """ if show_zh else ""
 
-    # 为了邮件客户端兼容，尽量使用 inline；渐变并不保证所有客户端都支持，但会有 background-color fallback
     header_html = f"""
     <tr>
       <td style="background-color:#0F172A;background-image:linear-gradient(135deg,#0F172A,#111827,#0F172A);padding:18px 18px;">
@@ -215,7 +213,6 @@ def build_email_html(
         </tr>
         """
 
-    # 英文块
     html = f"""<!doctype html>
 <html>
 <head>
@@ -276,5 +273,4 @@ def escape_html(s: str) -> str:
 
 
 def escape_attr(s: str) -> str:
-    # 简单属性转义
     return escape_html(s).replace("'", "&#39;")
