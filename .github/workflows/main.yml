@@ -1,38 +1,53 @@
-name: Cheeky Pint Newsletter
+name: Cheeky Pint Weekly
 
 on:
   schedule:
-    - cron: '36 10 * * 0'
+    - cron: "36 10 * * 0"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: cheeky-pint-weekly
+  cancel-in-progress: false
+
 jobs:
-  newsletter:
+  run:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      MAILEROO_API_KEY: ${{ secrets.MAILEROO_API_KEY }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run newsletter script
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          MAILEROO_API_KEY: ${{ secrets.MAILEROO_API_KEY }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-        run: python scripts/fetch_and_send.py
-
-      - name: Commit and push
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/data.json
-          git diff --staged --quiet || git commit -m "Update data $(date -u +%Y-%m-%d)"
-          git push
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run fetch/translate/send/update-pages
+        run: |
+          python scripts/run.py
+
+      - name: Commit and push docs updates (GitHub Pages)
+        run: |
+          set -e
+          if git status --porcelain | grep -E 'docs/' > /dev/null; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add docs/data.json docs/index.html
+            git commit -m "Update Cheeky Pint pages"
+            git push
+          else
+            echo "No docs changes to commit."
+          fi
