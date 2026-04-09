@@ -1,0 +1,87 @@
+version: 2.1
+
+parameters:
+  cheeky_pint_newsletter:
+    type: boolean
+    default: false
+
+jobs:
+  generate:
+    docker:
+      - image: cimg/python:3.12
+    resource_class: medium
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:dr8acksjgrjUOPbA6T59ZgQsqdSovv7DbzYTo9Wldcs"
+      - checkout
+      - run:
+          name: Ensure full git history (best-effort)
+          command: |
+            git fetch --prune --unshallow || true
+            git fetch --prune --tags || true
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "requirements.txt" }}
+            - pip-v1-
+      - run:
+          name: Install dependencies
+          command: |
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+      - save_cache:
+          key: pip-v1-{{ checksum "requirements.txt" }}
+          paths:
+            - ~/.cache/pip
+      - run:
+          name: Wait until 06:16 UTC (best-effort)
+          command: |
+            set -euo pipefail
+            target="$(date -u +%F) 10:36:00"
+            target_epoch="$(date -u -d "$target" +%s)"
+            now_epoch="$(date -u +%s)"
+
+            if [ "$now_epoch" -lt "$target_epoch" ]; then
+              sleep_sec=$(( target_epoch - now_epoch ))
+              echo "Sleeping ${sleep_sec}s until ${target} UTC..."
+              sleep "$sleep_sec"
+            else
+              echo "Current time is already past 10:36 UTC; continue now."
+            fi
+      - run:
+          name: Run CP Newsletter Script
+          command: |
+            python scripts/fetch_and_send.py
+      - run:
+          name: Commit updated data & push
+          command: |
+            set -euo pipefail
+
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            git add index.html entries.json
+
+            if git diff --cached --quiet; then
+              echo "No changes to commit."
+              exit 0
+            fi
+
+            git commit -m "Update index.html & entries.json"
+
+            git remote set-url origin "git@github.com:${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+
+            mkdir -p ~/.ssh
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+            git push origin "HEAD:${CIRCLE_BRANCH}"
+
+workflows:
+  CP_newsletter_generator:
+    when: << pipeline.parameters.cheeky_pint_newsletter >>
+    jobs:
+      - generate:
+          filters:
+            branches:
+              only:
+                - main
