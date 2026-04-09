@@ -51,7 +51,7 @@ jobs:
       - run:
           name: Run CP Newsletter Script
           command: |
-            python scripts/fetch_and_send.py
+            python scripts/run.py
       - run:
           name: Commit updated data & push
           command: |
