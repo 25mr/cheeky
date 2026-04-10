@@ -184,7 +184,7 @@ def split_html_by_paragraphs(transcript_html_en: str, max_chars: int) -> list[st
 
 def gemini_translate_html(api_key: str, html: str, *, max_retries: int = 10) -> str:
     """
-    - 401/403: API Key 无效，立即终止
+    - 400/401/403: API Key 无效，立即终止
     - 429: respect Retry-After
     - other non-retriable 4xx: abort immediately
     - retriable: exponential backoff + jitter
@@ -215,7 +215,6 @@ def gemini_translate_html(api_key: str, html: str, *, max_retries: int = 10) -> 
                 },
             )
 
-            # ---- API Key 无效：立即终止，不重试 ----
             if resp.status_code in (401, 403):
                 raise SystemExit(
                     f"✖ GEMINI_API_KEY invalid or unauthorized (HTTP {resp.status_code}): "
@@ -230,8 +229,23 @@ def gemini_translate_html(api_key: str, html: str, *, max_retries: int = 10) -> 
                 time.sleep(wait_s)
                 continue
 
-            if 400 <= resp.status_code < 500:
-                raise RuntimeError(f"Gemini non-retriable error: {resp.status_code} {resp.text[:300]}")
+            if resp.status_code == 400:
+                try:
+                    err = resp.json()
+                    reason = (
+                        err.get("error", {})
+                           .get("details", [{}])[0]
+                           .get("reason", "")
+                    )
+                except Exception:
+                    reason = ""
+
+                if reason == "API_KEY_INVALID" or "API key not valid" in resp.text:
+                    raise SystemExit(
+                        f"✖ GEMINI_API_KEY invalid (HTTP 400): {resp.text[:200]}"
+                    )
+
+                raise RuntimeError(f"Gemini 400 error: {resp.text[:300]}")
 
             if resp.status_code >= 500:
                 raise RuntimeError(f"Gemini server error: {resp.status_code}")
@@ -336,13 +350,10 @@ def send_email_via_maileroo(
     html: str,
     plain: str,
 ) -> None:
-    """
-    Maileroo API — POST https://api.maileroo.com/v1/email/send
-    """
-    url = "https://api.maileroo.com/v1/email/send"
+    url = "https://smtp.maileroo.com/api/v2/emails"
     payload = {
-        "from": {"email": email_from, "name": "Newsletter"},
-        "to": [{"email": x.strip()} for x in email_to_list if x.strip()],
+        "from": {"address": email_from, "display_name": "Newsletter"},
+        "to": [{"address": x.strip()} for x in email_to_list if x.strip()],
         "subject": subject,
         "html": html,
         "plain": plain,
