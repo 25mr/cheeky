@@ -456,8 +456,9 @@ def main() -> None:
 
     bj_tz = ZoneInfo("Asia/Shanghai")
     updated_at_bj = datetime.now(tz=bj_tz).strftime("%Y-%m-%d %H:%M")
+    updated_at_bja = datetime.now(tz=bj_tz).strftime("%Y-%m-%d")
 
-    subject = f"🍺Cheeky Pint - {ep.pub_date_bj}"
+    subject = f"🍺Cheeky Pint - {updated_at_bja}"
 
     html = build_email_html(
         title_en=ep.title,
