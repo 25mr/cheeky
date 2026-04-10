@@ -169,11 +169,11 @@ def build_email_html(
     header_html = f"""
     <tr>
       <td style="background-color:#0F172A;background-image:linear-gradient(135deg,#0F172A,#111827,#0F172A);padding:18px 18px;">
-        <div style="font-family:Arial,Helvetica,sans-serif;color:#ffffff;font-size:16px;line-height:1.4;font-weight:700;">
-          🍺 Cheeky Pint
+        <div style="font-family:Arial,Helvetica,sans-serif;color:#ffffff;font-size:28px;line-height:1.4;font-weight:700;">
+          🍺 CHEEKY PINT
         </div>
-        <div style="font-family:Arial,Helvetica,sans-serif;color:#cbd5e1;font-size:12px;line-height:1.5;margin-top:4px;">
-          Weekly episode transcript digest
+        <div style="font-family:Arial,Helvetica,sans-serif;color:#cbd5e1;font-size:16px;line-height:1.5;margin-top:4px;">
+          HAVE FUN ~
         </div>
       </td>
     </tr>
