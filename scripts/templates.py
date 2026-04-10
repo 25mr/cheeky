@@ -202,9 +202,9 @@ def build_email_html(
         <tr>
           <td style="padding: 0 18px 14px; font-family:Arial,Helvetica,sans-serif;">
             <div style="color:#374151;font-size:14px !important;line-height:1.6 !important;max-width:340px;margin:0 auto;word-break:break-word;">
-              <div style="font-weight:700;margin-bottom:6px;">{escape_html(title_zh)}</div>
+              <div style="font-weight:700;margin-bottom:6px;font-size:16px;">{escape_html(title_zh)}</div>
               <div style="margin-bottom:10px;">📅 {escape_html(pub_date_bj)}</div>
-              <div style="margin-bottom:10px;white-space:pre-wrap;">{escape_html(summary_zh)}</div>
+              <div style="margin-bottom:10px;white-space:pre-wrap;color:#6b7280;">{escape_html(summary_zh)}</div>
               <div style="margin-top:12px;">
                 {transcript_zh_block}
               </div>
@@ -241,9 +241,9 @@ def build_email_html(
           <tr>
             <td style="padding: 0 18px 14px; font-family:Arial,Helvetica,sans-serif;">
               <div style="color:#111827;font-size:14px !important;line-height:1.6 !important;">
-                <div style="font-weight:700;margin-bottom:6px;">{escape_html(title_en)}</div>
+                <div style="font-weight:700;margin-bottom:6px;font-size:16px;">{escape_html(title_en)}</div>
                 <div style="margin-bottom:10px;">📅 {escape_html(pub_date_bj)}</div>
-                <div style="margin-bottom:10px;white-space:pre-wrap;">{escape_html(summary_en)}</div>
+                <div style="margin-bottom:10px;white-space:pre-wrap;color:#6b7280;">{escape_html(summary_en)}</div>
                 <div style="margin-bottom:12px;">
                   <a href="{escape_attr(link)}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;">Open episode</a>
                 </div>
