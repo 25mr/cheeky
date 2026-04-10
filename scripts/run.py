@@ -182,12 +182,42 @@ def split_html_by_paragraphs(transcript_html_en: str, max_chars: int) -> list[st
     return chunks
 
 
+class GeminiError(Exception):
+    """Base error for Gemini translation."""
+
+
+class GeminiInvalidApiKeyError(GeminiError):
+    """API key invalid/unauthorized. Stop translating, but do not kill process."""
+
+
+class GeminiNonRetriableError(GeminiError):
+    """Non-retriable 4xx or other client-side errors."""
+
+
+def _is_api_key_invalid_400(resp: requests.Response) -> bool:
+    if "API key not valid" in (resp.text or ""):
+        return True
+
+    try:
+        err = resp.json() or {}
+        error_obj = err.get("error", {}) if isinstance(err, dict) else {}
+        details = error_obj.get("details", [])
+        if isinstance(details, list):
+            for d in details:
+                if isinstance(d, dict) and d.get("reason") == "API_KEY_INVALID":
+                    return True
+    except Exception:
+        pass
+
+    return False
+
+
 def gemini_translate_html(api_key: str, html: str, *, max_retries: int = 10) -> str:
     """
-    - 400/401/403: API Key 无效，立即终止
-    - 429: respect Retry-After
-    - other non-retriable 4xx: abort immediately
-    - retriable: exponential backoff + jitter
+    - 400/401/403 且判定为 API key 无效：抛 GeminiInvalidApiKeyError（不重试）
+    - 429：respect Retry-After（重试）
+    - other non-retriable 4xx：抛 GeminiNonRetriableError（不重试）
+    - 5xx / 网络错误等：指数退避 + jitter（重试）
     """
     prompt = (
         "Translate the following HTML from English to Simplified Chinese.\n"
@@ -216,11 +246,16 @@ def gemini_translate_html(api_key: str, html: str, *, max_retries: int = 10) -> 
             )
 
             if resp.status_code in (401, 403):
-                raise SystemExit(
-                    f"✖ GEMINI_API_KEY invalid or unauthorized (HTTP {resp.status_code}): "
-                    f"{resp.text[:200]}"
+                raise GeminiInvalidApiKeyError(
+                    f"GEMINI_API_KEY invalid or unauthorized (HTTP {resp.status_code}): {resp.text[:200]}"
                 )
 
+            if resp.status_code == 400 and _is_api_key_invalid_400(resp):
+                raise GeminiInvalidApiKeyError(
+                    f"GEMINI_API_KEY invalid (HTTP 400): {resp.text[:200]}"
+                )
+
+            # ---- 429：按 Retry-After 等待并重试 ----
             if resp.status_code == 429:
                 ra = resp.headers.get("Retry-After")
                 wait_s = int(ra) if ra and ra.isdigit() else 60
@@ -229,27 +264,17 @@ def gemini_translate_html(api_key: str, html: str, *, max_retries: int = 10) -> 
                 time.sleep(wait_s)
                 continue
 
-            if resp.status_code == 400:
-                try:
-                    err = resp.json()
-                    reason = (
-                        err.get("error", {})
-                           .get("details", [{}])[0]
-                           .get("reason", "")
-                    )
-                except Exception:
-                    reason = ""
+            # ---- 其他 4xx：不应重试，直接失败----
+            if 400 <= resp.status_code < 500:
+                raise GeminiNonRetriableError(
+                    f"Gemini non-retriable error: {resp.status_code} {resp.text[:300]}"
+                )
 
-                if reason == "API_KEY_INVALID" or "API key not valid" in resp.text:
-                    raise SystemExit(
-                        f"✖ GEMINI_API_KEY invalid (HTTP 400): {resp.text[:200]}"
-                    )
-
-                raise RuntimeError(f"Gemini 400 error: {resp.text[:300]}")
-
+            # ---- 5xx：可重试 ----
             if resp.status_code >= 500:
                 raise RuntimeError(f"Gemini server error: {resp.status_code}")
 
+            # ---- 解析正常返回 ----
             data = resp.json()
             text = (
                 data.get("candidates", [{}])[0]
@@ -262,26 +287,27 @@ def gemini_translate_html(api_key: str, html: str, *, max_retries: int = 10) -> 
                 raise RuntimeError("Gemini returned empty text")
             return text
 
-        except SystemExit:
-            raise  # 不捕获 SystemExit，让它直接终止进程
+        except (GeminiInvalidApiKeyError, GeminiNonRetriableError):
+            # 这两类错误：明确不重试，直接抛给上层处理（上层回退英文）
+            raise
+
         except Exception as e:
+            # 其余错误：重试（直到 max_retries）
             if attempt >= max_retries:
                 raise
 
             backoff = min(2 ** (attempt - 1), 64)
             sleep_s = backoff + random.uniform(0, 1.0)
-            print(f"  ⚠ Gemini error (attempt {attempt}/{max_retries}): {e}, retrying in {sleep_s:.1f}s...", flush=True)
+            print(
+                f"  ⚠ Gemini error (attempt {attempt}/{max_retries}): {e}, retrying in {sleep_s:.1f}s...",
+                flush=True,
+            )
             time.sleep(sleep_s)
 
     raise RuntimeError("Unreachable")
 
 
 def translate_episode(api_key: str, ep: Episode) -> tuple[str | None, str | None, str | None]:
-    """
-    返回 (title_zh, summary_zh, transcript_html_zh)
-    任一失败 -> 返回全 None（确保邮件只发英文）
-    注意：SystemExit（API Key 无效）不会被捕获，会直接终止。
-    """
     try:
         print("▶ Translating title...", flush=True)
         title_zh = gemini_translate_html(api_key, f"<p>{escape_min(ep.title)}</p>")
@@ -308,7 +334,7 @@ def translate_episode(api_key: str, ep: Episode) -> tuple[str | None, str | None
                 out_parts.append(zh)
 
                 if i != len(chunks) - 1:
-                    print(f"  ⏳ Pausing 15s before next chunk...", flush=True)
+                    print("  ⏳ Pausing 15s before next chunk...", flush=True)
                     time.sleep(15)
 
             transcript_html_zh = normalize_transcript_html_style("\n".join(out_parts), color="#374151")
@@ -320,8 +346,10 @@ def translate_episode(api_key: str, ep: Episode) -> tuple[str | None, str | None
 
         return title_zh, summary_zh, transcript_html_zh
 
-    except SystemExit:
-        raise  # API Key 无效等，直接终止
+    except GeminiInvalidApiKeyError as e:
+        print(f"✖ Translation skipped (invalid API key), will send English-only email: {e}", flush=True)
+        return None, None, None
+
     except Exception as e:
         print(f"✖ Translation failed, will send English-only email: {e}", flush=True)
         return None, None, None
