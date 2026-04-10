@@ -4,8 +4,103 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Cheeky Pint - Latest</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #0f172a;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --link: #93c5fd;
+      --border: rgba(255,255,255,0.08);
+    }
+    body {
+      margin: 0;
+      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+      background: radial-gradient(1200px 600px at 10% 10%, rgba(59,130,246,0.18), transparent 60%),
+                  radial-gradient(900px 500px at 90% 20%, rgba(34,197,94,0.14), transparent 60%),
+                  var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+    header {
+      padding: 18px 18px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: linear-gradient(135deg, #0F172A, #111827, #0F172A);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0.2px;
+    }
+    header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .grid {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 16px;
+      background: rgba(15,23,42,0.75);
+      backdrop-filter: blur(6px);
+    }
+    .title {
+      margin: 0 0 8px;
+      font-size: 16px;
+      line-height: 1.4;
+    }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+    .summary {
+      margin: 0;
+      color: #d1d5db;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-  <p>Waiting for first run...</p>
+  <div class="wrap">
+    <header>
+      <h1>🍺 Cheeky Pint (Latest 6)</h1>
+      <p>Auto-updated by GitHub Actions. Click the title to open the episode page.</p>
+    </header>
+
+    <main class="grid">
+      <article class="card">
+          <h2 class="title"><a href="https://share.transistor.fm/s/4a499db4" target="_blank" rel="noopener noreferrer">The history and future of AI at Google, with Sundar Pichai</a></h2>
+          <div class="meta">📅 2026-04-07</div>
+          <p class="summary">Sundar Pichai is the CEO of Google and Alphabet. He sits down with John and Elad Gil to discuss Google’s resurgence in the AI race, managing a massive $180 billion CapEx budget, and why 2026 is the year of the supply crunch. They cover the constraints of memory and power, why he believes the US economy will grow significantly due to AI, and the internal cultural shift back to &quot;Googley&quot; optimism. Sundar also shares details on long-term bets like data centers in space, why he wishes he had funded Waymo even faster, and the small thing inside Google that still ignites his passion for building. Timestamps (00:00:18) The history of Google and AI (00:05:17) Speed and Search (00:12:12) Google’s AI comeback (00:27:03) Stripe network intelligence (00:27:53) Bottlenecks (00:41:25) Capital allocation (01:00:44) How Google works</p>
+        </article>
+    </main>
+
+    <footer>
+      <div>Source: Transistor RSS</div>
+    </footer>
+  </div>
 </body>
 </html>
