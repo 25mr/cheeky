@@ -1,5 +1,11 @@
 [
   {
+    "title": "The world of voice AI, with Mati Staniszewski of ElevenLabs",
+    "date": "2026-04-14",
+    "summary": "Mati Staniszewski is the co-founder of ElevenLabs, the research company making audio accessible across languages and voices. He sits down with John to discuss the \"voice Turing Test\" and why AI has conquered text but still struggles with conversational speech. They discuss the future of human-computer interaction, including why we still can't get our phones to read a PDF properly and the massive potential for voice agents in everything from farming to healthcare. Mati also opens up about ElevenLabs’ rapid ascent to an $11 billion valuation and gives a behind-the-scenes look at how Ukraine is using their tech for digital government services. Timestamps (00:00:27) How audio models work (00:08:52) ElevenLabs business model (00:17:50) The conversational Turing Test (00:21:01) Link by Stripe (00:26:02) Cascaded vs speech-to-speech (00:31:53) Universal translation (00:51:41) Designing an AI-native org",
+    "link": "https://share.transistor.fm/s/d3182e01"
+  },
+  {
     "title": "The history and future of AI at Google, with Sundar Pichai",
     "date": "2026-04-07",
     "summary": "Sundar Pichai is the CEO of Google and Alphabet. He sits down with John and Elad Gil to discuss Google’s resurgence in the AI race, managing a massive $180 billion CapEx budget, and why 2026 is the year of the supply crunch. They cover the constraints of memory and power, why he believes the US economy will grow significantly due to AI, and the internal cultural shift back to \"Googley\" optimism. Sundar also shares details on long-term bets like data centers in space, why he wishes he had funded Waymo even faster, and the small thing inside Google that still ignites his passion for building. Timestamps (00:00:18) The history of Google and AI (00:05:17) Speed and Search (00:12:12) Google’s AI comeback (00:27:03) Stripe network intelligence (00:27:53) Bottlenecks (00:41:25) Capital allocation (01:00:44) How Google works",
